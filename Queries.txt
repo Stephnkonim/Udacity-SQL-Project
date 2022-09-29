@@ -1,0 +1,103 @@
+--query 1:
+
+WITH TOT_REV AS 
+	(SELECT f.title as Film_title, 
+		c.name category_name,
+		SUM(p.amount)AS Amount_generated
+	FROM category c
+	JOIN film_category fc
+			ON c.category_id = fc.category_id
+	JOIN film f
+			ON f.Film_id =fc.film_id
+	JOIN Inventory I
+		 ON I.film_id = f.film_id
+	JOIN Rental r
+		 ON r.inventory_id = i.inventory_id
+	JOIN PAYMENT p
+	 ON p.rental_id = r.rental_id
+	WHERE c.name = 'Animation' OR 
+		  c.name = 'Children' OR  
+		  c.name = 'Classics' OR 
+		  c.name = 'Comedy' OR 
+		  c.name = 'Family' OR 
+		  c.name = 'Music'
+	GROUP BY 1,2
+	ORDER BY 2,1)
+
+SELECT category_name,
+	Category_revenue,
+	category_revenue - Lag(category_revenue)OVER(ORDER BY category_revenue)AS rev_difference 
+FROM(SELECT category_name,SUM(amount_generated) AS Category_revenue
+	FROM TOT_REV
+	GROUP BY 1)CAT_REV
+
+--QUERY 2:
+
+SELECT family_movie_category,
+		sum(no_times_rented) AS Num_times_rented
+FROM(SELECT f.title movie,
+		c.name Family_movie_category,
+		COUNT(rental_id) No_times_rented
+	FROM category c
+	JOIN film_category fc
+		ON c.category_id = fc.category_id
+	JOIN film f
+		ON f.Film_id =fc.film_id
+	JOIN Inventory I
+		ON I.film_id = f.film_id
+	JOIN rental r
+		ON r.inventory_id = I.inventory_id
+	WHERE c.name = 'Animation' 
+		OR c.name = 'Children'
+		OR  c.name = 'Classics' 
+		OR c.name = 'Comedy' 
+		OR c.name = 'Family' 
+		OR c.name = 'Music'
+	GROUP BY  f.title,c.name
+	ORDER BY 2,1)k
+GROUP BY 1
+ 
+
+
+--QUERY 3:
+
+WITH sub1 as (SELECT so.store_id,  
+	DATE_PART('YEAR',rental_date) AS rental_year,
+	DATE_PART ('month',rental_date)AS rental_month,
+	COUNT(rental_id) Num_rentals
+FROM rental r
+	JOIN staff sa
+		ON r.staff_id = sa.staff_id
+	JOIN store so
+		ON so.store_id = sa.store_id
+WHERE so.Store_id = 1
+GROUP BY 1,2,3
+ORDER BY 4)
+
+SELECT Store_id,(rental_month||'-'||rental_year) AS rental_date,NUM_rentals,SUM(num_rentals) OVER (ORDER BY rental_month)AS rentals_running_Total
+FROM sub1
+WHERE rental_year=2005
+ORDER BY rental_date
+
+
+
+--Query 4:
+
+WITH Cust_rank as(select s.Store_id,
+	c.customer_id,
+	CONCAT(c.first_name,' ',c.last_name) AS Customer_name,
+	count(rental_id) as Num_movies_rented
+from Store s
+JOIN Customer c
+ON s.store_id = c.store_id
+JOIN rental r
+ON r.customer_id = c.customer_id
+WHERE s.store_id = 2
+GROUP BY 1,2,3
+ORDER BY 4 DESC)
+
+SELECT Store_id,customer_id,customer_name,Num_movies_rented,DENSE_RANK()OVER(ORDER BY Num_movies_rented DESC)AS Customer_rank
+FROM cust_rank
+ORDER BY Num_Movies_rented DESC
+LIMIT 7
+
